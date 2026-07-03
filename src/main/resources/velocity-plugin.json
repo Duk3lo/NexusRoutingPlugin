@@ -1,0 +1,6 @@
+{
+  "id": "nexusroutingplugin",
+  "name": "NexusRoutingPlugin",
+  "version": "${version}",
+  "main": "org.astral.nexusroutingplugin.NexusRoutingPlugin"
+}

@@ -1,0 +1,29 @@
+[14:00:30] [main/INFO] [com.velocitypowered.proxy.VelocityServer]: Booting up Velocity 3.5.0-SNAPSHOT (git-a7581821-b605)...
+[14:00:30] [main/INFO] [com.velocitypowered.proxy.network.ConnectionManager]: Connections will use epoll channels, libdeflate (Linux x86_64) compression, OpenSSL 3.x.x (Linux x86_64) ciphers
+[14:00:30] [main/WARN] [com.velocitypowered.proxy.config.VelocityConfiguration]: Player info forwarding is disabled! All players will appear to be connecting from the proxy and will have offline-mode UUIDs.
+[14:00:30] [main/INFO] [com.velocitypowered.proxy.VelocityServer]: Loading localizations...
+[14:00:30] [main/INFO] [com.velocitypowered.proxy.VelocityServer]: Loading plugins...
+[14:00:30] [main/INFO] [com.velocitypowered.proxy.plugin.VelocityPluginManager]: Loaded plugin nexusroutingplugin 1.0.0 by 
+[14:00:30] [main/INFO] [com.velocitypowered.proxy.VelocityServer]: Loaded 2 plugins
+[14:00:30] [NexusRoutingPlugin - Task Executor #0/INFO] [nexusroutingplugin]: Archivo config.yml generado por primera vez.
+[14:00:30] [NexusRoutingPlugin - Task Executor #0/INFO] [nexusroutingplugin]: Comandos registrados correctamente.
+[14:00:30] [NexusRoutingPlugin - Task Executor #0/INFO] [nexusroutingplugin]: NexusRouting cargado y listo para enrutar jugadores.
+[14:00:30] [Netty epoll Boss #0/ERROR] [com.velocitypowered.proxy.network.ConnectionManager]: Can't bind to /0.0.0.0:25565
+io.netty.channel.unix.Errors$NativeIoException: bind(..) failed with error(-98): La dirección ya se está usando
+	Suppressed: java.util.concurrent.CompletionException: Rethrowing promise failure cause
+		at io.netty.util.concurrent.DefaultPromise.rethrowIfFailed(DefaultPromise.java:686)
+		at io.netty.util.concurrent.DefaultPromise.syncUninterruptibly(DefaultPromise.java:427)
+		at io.netty.channel.DefaultChannelPromise.syncUninterruptibly(DefaultChannelPromise.java:125)
+		at io.netty.channel.DefaultChannelPromise.syncUninterruptibly(DefaultChannelPromise.java:30)
+		at com.velocitypowered.proxy.network.ConnectionManager.bind(ConnectionManager.java:149)
+		at com.velocitypowered.proxy.VelocityServer.start(VelocityServer.java:323)
+		at com.velocitypowered.proxy.Velocity.main(Velocity.java:71)
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: Exception in thread "main" io.netty.channel.unix.Errors$NativeIoException: bind(..) failed with error(-98): La dirección ya se está usando
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 	Suppressed: java.util.concurrent.CompletionException: Rethrowing promise failure cause
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 		at io.netty.util.concurrent.DefaultPromise.rethrowIfFailed(DefaultPromise.java:686)
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 		at io.netty.util.concurrent.DefaultPromise.syncUninterruptibly(DefaultPromise.java:427)
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 		at io.netty.channel.DefaultChannelPromise.syncUninterruptibly(DefaultChannelPromise.java:125)
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 		at io.netty.channel.DefaultChannelPromise.syncUninterruptibly(DefaultChannelPromise.java:30)
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 		at com.velocitypowered.proxy.network.ConnectionManager.bind(ConnectionManager.java:149)
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 		at com.velocitypowered.proxy.VelocityServer.start(VelocityServer.java:323)
+[14:00:30] [main/ERROR] [com.velocitypowered.proxy.console.VelocityConsole]: 		at com.velocitypowered.proxy.Velocity.main(Velocity.java:71)
