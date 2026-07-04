@@ -3,10 +3,12 @@ package org.astral.nexusroutingplugin.config;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.spongepowered.configurate.CommentedConfigurationNode;
+import org.spongepowered.configurate.yaml.NodeStyle;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 public final class ConfigManager {
     private final Path configFile;
@@ -17,7 +19,10 @@ public final class ConfigManager {
     public ConfigManager(@NonNull Path dataDirectory, Logger logger) {
         this.logger = logger;
         this.configFile = dataDirectory.resolve("config.yml");
-        this.loader = YamlConfigurationLoader.builder().path(configFile).build();
+        this.loader = YamlConfigurationLoader.builder()
+                .path(configFile)
+                .nodeStyle(NodeStyle.BLOCK)
+                .build();
     }
 
     public void load() {
@@ -26,12 +31,16 @@ public final class ConfigManager {
                 Files.createDirectories(configFile.getParent());
                 root = loader.createNode();
 
-                root.node("server-vanilla").set("auth");
-                root.node("server-modded-main").set("auth_arclight");
-                root.node("server-modded-horror").set("auth_arclight_horror");
+                root.node("first-try", "default-client").set("neoforge")
+                        .comment("Si no se detecta el cliente, ¿qué intentamos primero? (neoforge o forge)");
+
+                root.node("routes", "vanilla").setList(String.class, List.of("auth"));
+                root.node("routes", "forge").setList(String.class, List.of("arclight_horror"));
+                root.node("routes", "neoforge").setList(String.class, List.of("auth_arclight"));
+                root.node("routes", "fabric").setList(String.class, List.of("auth"));
+                root.node("routes", "horror").setList(String.class, List.of("auth_arclight_horror"));
 
                 loader.save(root);
-                logger.info("Configuración generada. Asegúrate de que los nombres coincidan con velocity.toml");
             } else {
                 root = loader.load();
             }
@@ -40,7 +49,18 @@ public final class ConfigManager {
         }
     }
 
-    public @NonNull String getVanilla() { return root.node("server-vanilla").getString("auth"); }
-    public @NonNull String getMainModded() { return root.node("server-modded-main").getString("auth_arclight"); }
-    public @NonNull String getHorrorModded() { return root.node("server-modded-horror").getString("auth_arclight_horror"); }
+    public @NonNull String getDefaultClient() { return root.node("first-try", "default-client").getString("neoforge").toLowerCase(); }
+    public @NonNull List<String> getRoutesVanilla() { return getListSafely("routes", "vanilla"); }
+    public @NonNull List<String> getRoutesForge() { return getListSafely("routes", "forge"); }
+    public @NonNull List<String> getRoutesNeoForge() { return getListSafely("routes", "neoforge"); }
+    public @NonNull List<String> getRoutesFabric() { return getListSafely("routes", "fabric"); }
+    public @NonNull List<String> getRoutesHorror() { return getListSafely("routes", "horror"); }
+    public @NonNull List<String> getForceGlobal() { return getListSafely("force-routes", "global"); }
+
+    private @NonNull List<String> getListSafely(String... path) {
+        try {
+            List<String> list = root.node((Object[]) path).getList(String.class);
+            return list != null ? list : List.of();
+        } catch (Exception e) { return List.of(); }
+    }
 }

@@ -26,5 +26,5 @@ public final class ReloadCmd implements SubCommand {
     }
 
     @Override
-    public List<String> suggest(CommandSource source, String[] args) { return List.of(); }
+    public @NonNull List<String> suggest(CommandSource source, String[] args) { return List.of(); }
 }

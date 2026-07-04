@@ -16,7 +16,7 @@ import java.nio.file.Path;
 @Plugin(
         id = "nexusrouting",
         name = "NexusRouting",
-        version = "1.0.0",
+        version = "2.0.0",
         description = "Enrutador inteligente para redes mixtas (Vanilla/Mods)",
         authors = {"Duk3lo", "Astral"}
 )
@@ -41,6 +41,6 @@ public final class NexusRoutingPlugin {
         RegisterEvents.registerAll(this, proxy, configManager, logger);
         CommandRegistry.registerAll(this, proxy, configManager, logger);
 
-        logger.info("NexusRouting cargado y listo para enrutar jugadores.");
+        logger.info("NexusRouting v2.0 cargado. Lógica de enrutamiento inteligente activada.");
     }
 }

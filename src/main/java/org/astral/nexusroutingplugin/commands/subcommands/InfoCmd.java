@@ -20,18 +20,32 @@ public final class InfoCmd implements SubCommand {
 
     @Override
     public void execute(@NonNull CommandSource source, String[] args) {
-        source.sendMessage(Component.text("=== Configuración de Roles NexusRouting ===", NamedTextColor.AQUA));
+        source.sendMessage(Component.text("=== Rutas NexusRouting ===", NamedTextColor.AQUA));
 
-        source.sendMessage(Component.text("• Servidor Vanilla/Bedrock: ", NamedTextColor.GRAY)
-                .append(Component.text(configManager.getVanilla(), NamedTextColor.GREEN)));
+        source.sendMessage(Component.text("• First-Try (Por defecto): ", NamedTextColor.GOLD)
+                .append(Component.text(configManager.getDefaultClient().toUpperCase(), NamedTextColor.YELLOW)));
 
-        source.sendMessage(Component.text("• Servidor Mods (Principal): ", NamedTextColor.GRAY)
-                .append(Component.text(configManager.getMainModded(), NamedTextColor.GREEN)));
+        source.sendMessage(Component.text("• Vanilla/Bedrock: ", NamedTextColor.GRAY)
+                .append(Component.text(String.join(", ", configManager.getRoutesVanilla()), NamedTextColor.GREEN)));
 
-        source.sendMessage(Component.text("• Servidor Mods (Horror): ", NamedTextColor.GRAY)
-                .append(Component.text(configManager.getHorrorModded(), NamedTextColor.GREEN)));
+        source.sendMessage(Component.text("• Forge: ", NamedTextColor.GRAY)
+                .append(Component.text(String.join(", ", configManager.getRoutesForge()), NamedTextColor.GREEN)));
 
-        source.sendMessage(Component.text("Lógica activa: Redirección automática por rechazo de NeoForge.", NamedTextColor.YELLOW));
+        source.sendMessage(Component.text("• NeoForge: ", NamedTextColor.GRAY)
+                .append(Component.text(String.join(", ", configManager.getRoutesNeoForge()), NamedTextColor.GREEN)));
+
+        source.sendMessage(Component.text("• Fabric: ", NamedTextColor.GRAY)
+                .append(Component.text(String.join(", ", configManager.getRoutesFabric()), NamedTextColor.GREEN)));
+
+        source.sendMessage(Component.text("• Horror Modpack: ", NamedTextColor.GRAY)
+                .append(Component.text(String.join(", ", configManager.getRoutesHorror()), NamedTextColor.GREEN)));
+
+        List<String> globalForce = configManager.getForceGlobal();
+        if (globalForce.isEmpty()) {
+            source.sendMessage(Component.text("• Forzado Global: DESACTIVADO", NamedTextColor.YELLOW));
+        } else {
+            source.sendMessage(Component.text("• Forzado Global: ACTIVO -> " + String.join(", ", globalForce), NamedTextColor.RED));
+        }
     }
 
     @Override public @NonNull List<String> suggest(CommandSource source, String[] args) { return List.of(); }
