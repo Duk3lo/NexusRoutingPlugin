@@ -1,6 +1,8 @@
 package org.astral.nexusroutingplugin.config;
 
+import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.spongepowered.configurate.CommentedConfigurationNode;
 import org.spongepowered.configurate.yaml.NodeStyle;
@@ -8,7 +10,9 @@ import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public final class ConfigManager {
     private final Path configFile;
@@ -19,10 +23,7 @@ public final class ConfigManager {
     public ConfigManager(@NonNull Path dataDirectory, Logger logger) {
         this.logger = logger;
         this.configFile = dataDirectory.resolve("config.yml");
-        this.loader = YamlConfigurationLoader.builder()
-                .path(configFile)
-                .nodeStyle(NodeStyle.BLOCK)
-                .build();
+        this.loader = YamlConfigurationLoader.builder().path(configFile).nodeStyle(NodeStyle.BLOCK).build();
     }
 
     public void load() {
@@ -31,36 +32,49 @@ public final class ConfigManager {
                 Files.createDirectories(configFile.getParent());
                 root = loader.createNode();
 
-                root.node("first-try", "default-client").set("neoforge")
-                        .comment("Si no se detecta el cliente, ¿qué intentamos primero? (neoforge o forge)");
+                root.node("default-server").comment("Servidor Vanilla / Lobby por defecto").set("auth");
+                root.node("routes").comment("Mapeos manuales por si quieres forzar alguno (opcional)");
 
-                root.node("routes", "vanilla").setList(String.class, List.of("auth"));
-                root.node("routes", "forge").setList(String.class, List.of("arclight_horror"));
-                root.node("routes", "neoforge").setList(String.class, List.of("auth_arclight"));
-                root.node("routes", "fabric").setList(String.class, List.of("auth"));
-                root.node("routes", "horror").setList(String.class, List.of("auth_arclight_horror"));
+                root.node("discovery").comment("Orden de búsqueda si hay conflicto de mods");
+                root.node("discovery", "neoforge", "enabled").set(true);
+                root.node("discovery", "neoforge", "servers").setList(String.class, List.of("auth_neo1", "auth_neo2"));
+                root.node("discovery", "forge", "enabled").set(true);
+                root.node("discovery", "forge", "servers").setList(String.class, List.of("auth_forge1", "auth_arclight"));
 
                 loader.save(root);
             } else {
                 root = loader.load();
             }
-        } catch (Exception e) {
-            logger.error("Error cargando config.yml", e);
-        }
+        } catch (Exception e) { logger.error("Error cargando config.yml", e); }
     }
 
-    public @NonNull String getDefaultClient() { return root.node("first-try", "default-client").getString("neoforge").toLowerCase(); }
-    public @NonNull List<String> getRoutesVanilla() { return getListSafely("routes", "vanilla"); }
-    public @NonNull List<String> getRoutesForge() { return getListSafely("routes", "forge"); }
-    public @NonNull List<String> getRoutesNeoForge() { return getListSafely("routes", "neoforge"); }
-    public @NonNull List<String> getRoutesFabric() { return getListSafely("routes", "fabric"); }
-    public @NonNull List<String> getRoutesHorror() { return getListSafely("routes", "horror"); }
-    public @NonNull List<String> getForceGlobal() { return getListSafely("force-routes", "global"); }
+    public @NonNull String getDefaultServer() {
+        return root.node("default-server").getString("auth");
+    }
 
-    private @NonNull List<String> getListSafely(String... path) {
+    public @Nullable String getManualRoute(String key) {
+        String route = root.node("routes", key).getString();
+        return (route != null && !route.isEmpty()) ? route : null;
+    }
+
+    public @NonNull Map<String, String> getManualRoutes() {
+        Map<String, String> routes = new java.util.HashMap<>();
         try {
-            List<String> list = root.node((Object[]) path).getList(String.class);
-            return list != null ? list : List.of();
-        } catch (Exception e) { return List.of(); }
+            root.node("routes").childrenMap().forEach((k, v) -> routes.put(k.toString(), v.getString()));
+        } catch (Exception ignored) {}
+        return routes;
+    }
+
+    public @NonNull @Unmodifiable List<String> getDiscoveryQueue() {
+        List<String> queue = new ArrayList<>();
+        try {
+            Map<Object, ? extends CommentedConfigurationNode> sections = root.node("discovery").childrenMap();
+            for (CommentedConfigurationNode section : sections.values()) {
+                if (section.node("enabled").getBoolean(false)) {
+                    queue.addAll(section.node("servers").getList(String.class, List.of()));
+                }
+            }
+        } catch (Exception ignored) {}
+        return queue.stream().distinct().toList();
     }
 }

@@ -4,27 +4,22 @@ import com.velocitypowered.api.command.CommandSource;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.astral.nexusroutingplugin.config.ConfigManager;
+import org.jetbrains.annotations.Contract;
 import org.jspecify.annotations.NonNull;
-
 import java.util.List;
 
 public final class ReloadCmd implements SubCommand {
-    private final ConfigManager configManager;
-
-    public ReloadCmd(ConfigManager configManager) {
-        this.configManager = configManager;
-    }
+    private final ConfigManager config;
+    public ReloadCmd(ConfigManager config) { this.config = config; }
 
     @Override public @NonNull String getName() { return "reload"; }
     @Override public @NonNull String getPermission() { return "nexusrouting.admin"; }
 
     @Override
     public void execute(@NonNull CommandSource source, String[] args) {
-        source.sendMessage(Component.text("Recargando reglas de enrutamiento...", NamedTextColor.YELLOW));
-        configManager.load();
-        source.sendMessage(Component.text("¡NexusRouting recargado con éxito!", NamedTextColor.GREEN));
+        config.load();
+        source.sendMessage(Component.text("¡NexusRouting recargado!", NamedTextColor.GREEN));
     }
-
-    @Override
-    public @NonNull List<String> suggest(CommandSource source, String[] args) { return List.of(); }
+    @Contract(pure = true)
+    @Override public @NonNull List<String> suggest(CommandSource s, String[] a) { return List.of(); }
 }
