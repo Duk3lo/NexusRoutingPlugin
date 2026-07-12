@@ -8,7 +8,6 @@ import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
 import org.astral.nexusroutingplugin.commands.CommandRegistry;
 import org.astral.nexusroutingplugin.config.ConfigManager;
-import org.astral.nexusroutingplugin.config.PlayerDataManager;
 import org.astral.nexusroutingplugin.events.RegisterEvents;
 import org.slf4j.Logger;
 import java.nio.file.Path;
@@ -32,13 +31,9 @@ public final class NexusRoutingPlugin {
     public void onProxyInitialization(ProxyInitializeEvent event) {
         ConfigManager configManager = new ConfigManager(dataDirectory, logger);
         configManager.load();
-
-        PlayerDataManager playerDataManager = new PlayerDataManager(dataDirectory, logger);
-        playerDataManager.load();
-
-        RegisterEvents.registerAll(this, proxy, configManager, playerDataManager, logger);
+        RegisterEvents.registerAll(this, proxy, configManager, logger);
         CommandRegistry.registerAll(this, proxy, configManager, logger);
-        logger.info("NexusRouting v3.0 (Persistent Discovery) cargado correctamente.");
+        logger.info("NexusRouting v2.1 (Discovery Mode) cargado correctamente.");
     }
 
     public static NexusRoutingPlugin getInstance() { return instance; }

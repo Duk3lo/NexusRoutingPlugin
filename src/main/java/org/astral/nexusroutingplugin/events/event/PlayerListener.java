@@ -11,10 +11,11 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
+import com.google.common.io.ByteArrayDataInput;
+import com.google.common.io.ByteStreams;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.astral.nexusroutingplugin.NexusRoutingPlugin;
 import org.astral.nexusroutingplugin.config.ConfigManager;
-import org.astral.nexusroutingplugin.config.PlayerDataManager;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 
@@ -30,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 public final class PlayerListener {
     private final ProxyServer proxy;
     private final ConfigManager config;
-    private final PlayerDataManager playerData;
     private final Logger logger;
 
     public static final MinecraftChannelIdentifier ROUTER_CHANNEL = MinecraftChannelIdentifier.from("lumineriabase:router");
@@ -40,69 +40,25 @@ public final class PlayerListener {
     private final Set<UUID> resolvedPlayers = ConcurrentHashMap.newKeySet();
 
     private static class RoutingState {
-        final List<String> discoveryQueue;
-        int discoveryIndex;
+        String originalKey;
         String currentServer;
+        boolean inDiscovery = false;
+        List<String> discoveryQueue;
+        int discoveryIndex = 0;
 
-        RoutingState(List<String> queue, int startIndex) {
-            this.discoveryQueue = queue;
-            this.discoveryIndex = startIndex;
-        }
+        RoutingState(String key) { this.originalKey = key; }
     }
 
-    public PlayerListener(@NonNull ProxyServer proxy, ConfigManager config, PlayerDataManager playerData, Logger logger) {
+    public PlayerListener(@NonNull ProxyServer proxy, ConfigManager config, Logger logger) {
         this.proxy = proxy;
         this.config = config;
-        this.playerData = playerData;
         this.logger = logger;
         proxy.getChannelRegistrar().register(ROUTER_CHANNEL, SYNC_CHANNEL);
     }
 
     @Subscribe(priority = 32767)
     public void onPlayerChooseInitialServer(@NonNull PlayerChooseInitialServerEvent event) {
-        Player player = event.getPlayer();
-        UUID id = player.getUniqueId();
-
-        List<String> queue = config.getDiscoveryQueue();
-        if (queue.isEmpty()) {
-            logger.warn("[Discovery] No hay servidores configurados en 'discovery' dentro de config.yml.");
-            return;
-        }
-
-        int startIndex = 0;
-        String remembered = playerData.getLastServer(id);
-        if (remembered != null) {
-            int idx = queue.indexOf(remembered);
-            if (idx >= 0) {
-                startIndex = idx;
-                logger.info("[Memoria] {} tiene registro previo: '{}'. Se probará primero.", player.getUsername(), remembered);
-            }
-        }
-
-        RoutingState state = new RoutingState(queue, startIndex);
-        routingMap.put(id, state);
-
-        placeCandidate(player, state, event);
-    }
-
-    private void placeCandidate(Player player, @NonNull RoutingState state, PlayerChooseInitialServerEvent event) {
-        while (state.discoveryIndex < state.discoveryQueue.size()) {
-            String candidate = state.discoveryQueue.get(state.discoveryIndex);
-            Optional<RegisteredServer> server = proxy.getServer(candidate);
-
-            if (server.isPresent()) {
-                state.currentServer = candidate;
-                event.setInitialServer(server.get());
-                logger.info("[Discovery] Servidor inicial para {}: '{}'", player.getUsername(), candidate);
-                return;
-            }
-
-            logger.warn("[Discovery] '{}' no está registrado en velocity.toml, se salta.", candidate);
-            state.discoveryIndex++;
-        }
-
-        logger.warn("[Discovery] Se agotó la lista de candidatos para {} sin encontrar ninguno registrado.", player.getUsername());
-        routingMap.remove(player.getUniqueId());
+        proxy.getServer(config.getDefaultServer()).ifPresent(event::setInitialServer);
     }
 
     @Subscribe
@@ -116,6 +72,90 @@ public final class PlayerListener {
     public void onPluginMessage(@NonNull PluginMessageEvent event) {
         if (!event.getIdentifier().equals(ROUTER_CHANNEL)) return;
         event.setResult(PluginMessageEvent.ForwardResult.handled());
+        if (!(event.getSource() instanceof Player player)) return;
+
+        if (resolvedPlayers.contains(player.getUniqueId())) return;
+
+        String routingKey;
+        try {
+            ByteArrayDataInput in = ByteStreams.newDataInput(event.getData());
+            routingKey = in.readUTF().trim();
+        } catch (Exception e) {
+            routingKey = new String(event.getData(), StandardCharsets.UTF_8).trim();
+        }
+
+        if (routingKey.isEmpty() || routingKey.equalsIgnoreCase("null")) return;
+
+        RoutingState existing = routingMap.get(player.getUniqueId());
+        if (existing != null && existing.inDiscovery) {
+            existing.originalKey = routingKey;
+            return;
+        }
+
+        RoutingState state = new RoutingState(routingKey);
+        logger.info("[Enrutador] Jugador {} envió la llave: '{}'", player.getUsername(), routingKey);
+
+        Optional<RegisteredServer> targetServer = proxy.getServer(routingKey);
+
+        if (targetServer.isEmpty()) {
+            String manualOverride = config.getManualRoute(routingKey);
+            if (manualOverride != null && !manualOverride.isEmpty()) {
+                targetServer = proxy.getServer(manualOverride);
+            }
+        }
+
+        if (targetServer.isPresent()) {
+            state.currentServer = targetServer.get().getServerInfo().getName();
+            routingMap.put(player.getUniqueId(), state);
+            player.createConnectionRequest(targetServer.get()).connect().thenAccept(result -> {
+                if (!result.isSuccessful()) {
+                    startDiscovery(player, state);
+                }
+            });
+        } else {
+            startDiscovery(player, state);
+        }
+    }
+
+    private void startDiscovery(Player player, @NonNull RoutingState state) {
+        state.discoveryQueue = config.getDiscoveryQueue();
+        state.inDiscovery = true;
+        state.discoveryIndex = 0;
+
+        if (state.discoveryQueue.isEmpty()) {
+            logger.warn("[Discovery] No hay servidores configurados. Mandando a Vanilla...");
+            routingMap.remove(player.getUniqueId());
+            return;
+        }
+
+        logger.info("[Discovery] Buscando servidor compatible para '{}'", player.getUsername());
+        routingMap.put(player.getUniqueId(), state);
+        tryNextDiscoveryServer(player, state);
+    }
+
+    private void tryNextDiscoveryServer(Player player, @NonNull RoutingState state) {
+        if (state.discoveryIndex >= state.discoveryQueue.size()) {
+            logger.warn("[Discovery] Agotamos la lista para {}.", player.getUsername());
+            routingMap.remove(player.getUniqueId());
+            return;
+        }
+
+        String nextServer = state.discoveryQueue.get(state.discoveryIndex);
+        state.currentServer = nextServer;
+        Optional<RegisteredServer> serverOpt = proxy.getServer(nextServer);
+
+        if (serverOpt.isPresent()) {
+            logger.info("[Discovery] Probando servidor '{}' para {}", nextServer, player.getUsername());
+            player.createConnectionRequest(serverOpt.get()).connect().thenAccept(result -> {
+                if (!result.isSuccessful() && result.getReasonComponent().isEmpty()) {
+                    state.discoveryIndex++;
+                    tryNextDiscoveryServer(player, state);
+                }
+            });
+        } else {
+            state.discoveryIndex++;
+            tryNextDiscoveryServer(player, state);
+        }
     }
 
     @Subscribe
@@ -123,40 +163,40 @@ public final class PlayerListener {
         Player player = event.getPlayer();
         String serverName = event.getServer().getServerInfo().getName();
 
-        if (event.getServerKickReason().isEmpty()) return;
+        if (event.getServerKickReason().isPresent()) {
+            String reason = PlainTextComponentSerializer.plainText().serialize(event.getServerKickReason().get()).toLowerCase();
+            if (reason.contains("mod") || reason.contains("forge") || reason.contains("mismatch") || reason.contains("registry") || reason.contains("incompatible") || reason.contains("fml")) {
 
-        String reason = PlainTextComponentSerializer.plainText().serialize(event.getServerKickReason().get()).toLowerCase();
-        boolean modMismatch = reason.contains("mod") || reason.contains("forge") || reason.contains("mismatch")
-                || reason.contains("registry") || reason.contains("incompatible") || reason.contains("fml");
+                RoutingState state = routingMap.get(player.getUniqueId());
 
-        if (!modMismatch) return;
+                if (state == null) {
+                    logger.info("[Interceptado] {} expulsado de '{}' por mods antes de enviar llave. Iniciando Discovery forzado.", player.getUsername(), serverName);
+                    state = new RoutingState("UNKNOWN");
+                    state.discoveryQueue = config.getDiscoveryQueue();
+                    state.inDiscovery = true;
+                    state.discoveryIndex = 0;
+                    routingMap.put(player.getUniqueId(), state);
+                } else {
+                    logger.info("[Interceptado] {} expulsado de '{}' por mods. Redirigiendo al siguiente...", player.getUsername(), serverName);
+                    state.discoveryIndex++;
+                }
 
-        RoutingState state = routingMap.get(player.getUniqueId());
+                while (state.discoveryIndex < state.discoveryQueue.size()) {
+                    String nextServerName = state.discoveryQueue.get(state.discoveryIndex);
+                    Optional<RegisteredServer> nextServer = proxy.getServer(nextServerName);
 
-        if (state == null) {
-            logger.info("[Interceptado] {} expulsado de '{}' sin estado previo. Iniciando Discovery desde cero.", player.getUsername(), serverName);
-            state = new RoutingState(config.getDiscoveryQueue(), 0);
-            routingMap.put(player.getUniqueId(), state);
-        } else {
-            logger.info("[Interceptado] {} expulsado de '{}' por mods. Probando siguiente candidato...", player.getUsername(), serverName);
-            state.discoveryIndex++;
-        }
+                    if (nextServer.isPresent()) {
+                        state.currentServer = nextServerName;
+                        logger.info("[Discovery] Probando INMEDIATAMENTE el servidor '{}' para {}", nextServerName, player.getUsername());
+                        event.setResult(KickedFromServerEvent.RedirectPlayer.create(nextServer.get()));
+                        return;
+                    }
+                    state.discoveryIndex++;
+                }
 
-        while (state.discoveryIndex < state.discoveryQueue.size()) {
-            String nextName = state.discoveryQueue.get(state.discoveryIndex);
-            Optional<RegisteredServer> next = proxy.getServer(nextName);
-
-            if (next.isPresent()) {
-                state.currentServer = nextName;
-                logger.info("[Discovery] Redirigiendo a {} hacia '{}'", player.getUsername(), nextName);
-                event.setResult(KickedFromServerEvent.RedirectPlayer.create(next.get()));
-                return;
+                routingMap.remove(player.getUniqueId());
             }
-            state.discoveryIndex++;
         }
-
-        logger.warn("[Discovery] Se agotaron los candidatos para {}.", player.getUsername());
-        routingMap.remove(player.getUniqueId());
     }
 
     @Subscribe
@@ -167,12 +207,24 @@ public final class PlayerListener {
 
         if (resolvedPlayers.contains(id)) return;
 
-        playerData.setLastServer(id, actualServer);
-        resolvedPlayers.add(id);
-        routingMap.remove(id);
+        RoutingState state = routingMap.get(id);
 
-        sendSyncPacket(player, actualServer);
-        logger.info("[¡Éxito!] {} quedó en '{}'. Guardado para futuras conexiones.", player.getUsername(), actualServer);
+        if (state != null) {
+            if (actualServer.equals(state.currentServer)) {
+                if (!actualServer.equals(state.originalKey)) {
+                    sendSyncPacket(player, actualServer);
+                    logger.info("[¡Éxito!] {} compatible con '{}'. Sincronizando cliente...", player.getUsername(), actualServer);
+                } else {
+                    logger.info("[¡Éxito!] {} entró directo a '{}'.", player.getUsername(), actualServer);
+                }
+                routingMap.remove(id);
+                resolvedPlayers.add(id);
+            }
+        } else {
+            sendSyncPacket(player, actualServer);
+            resolvedPlayers.add(id);
+            logger.info("[Fallback] {} conectó a '{}'. Sincronizando cliente...", player.getUsername(), actualServer);
+        }
     }
 
     private void sendSyncPacket(@NonNull Player player, @NonNull String newKey) {

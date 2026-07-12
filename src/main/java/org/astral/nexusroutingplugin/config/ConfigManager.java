@@ -32,14 +32,14 @@ public final class ConfigManager {
                 Files.createDirectories(configFile.getParent());
                 root = loader.createNode();
 
-                root.node("default-server").comment("Servidor Vanilla / Lobby por defecto").set("auth");
+                root.node("default-server").comment("Servidor por defecto (ya no se usa activamente, se deja por compatibilidad)").set("my_neoforge");
                 root.node("routes").comment("Mapeos manuales por si quieres forzar alguno (opcional)");
 
-                root.node("discovery").comment("Orden de búsqueda si hay conflicto de mods");
+                root.node("discovery").comment("Orden de búsqueda si hay conflicto de mods. Los nombres deben coincidir EXACTO con los de [servers] en velocity.toml");
                 root.node("discovery", "neoforge", "enabled").set(true);
-                root.node("discovery", "neoforge", "servers").setList(String.class, List.of("auth_neo1", "auth_neo2"));
+                root.node("discovery", "neoforge", "servers").setList(String.class, List.of("my_neoforge"));
                 root.node("discovery", "forge", "enabled").set(true);
-                root.node("discovery", "forge", "servers").setList(String.class, List.of("auth_forge1", "auth_arclight"));
+                root.node("discovery", "forge", "servers").setList(String.class, List.of("arclight_horror"));
 
                 loader.save(root);
             } else {
